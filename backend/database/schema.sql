@@ -1,0 +1,115 @@
+CREATE DATABASE IF NOT EXISTS lab_escolar CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE lab_escolar;
+CREATE TABLE IF NOT EXISTS usuarios (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  nombre VARCHAR(100) NOT NULL,
+  username VARCHAR(40) NOT NULL UNIQUE,
+  correo VARCHAR(150) NULL UNIQUE,
+  password_hash VARCHAR(255) NOT NULL,
+  rol ENUM('admin', 'usuario') NOT NULL DEFAULT 'usuario',
+  foto VARCHAR(255) NULL,
+  activo BOOLEAN NOT NULL DEFAULT TRUE,
+  intentos_fallidos TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  bloqueado_hasta DATETIME NULL,
+  creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  actualizado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_usuarios_rol (rol),
+  INDEX idx_usuarios_activo (activo)
+) ENGINE = InnoDB;
+CREATE TABLE IF NOT EXISTS maestros (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  nombre VARCHAR(120) NOT NULL,
+  correo VARCHAR(150) NOT NULL UNIQUE,
+  especialidad VARCHAR(120) NOT NULL,
+  telefono VARCHAR(25) NULL,
+  creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  actualizado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE = InnoDB;
+CREATE TABLE IF NOT EXISTS materias (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  nombre VARCHAR(120) NOT NULL,
+  clave VARCHAR(30) NOT NULL UNIQUE,
+  creditos TINYINT UNSIGNED NOT NULL,
+  maestro_id INT UNSIGNED NOT NULL,
+  creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  actualizado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT chk_materias_creditos CHECK (
+    creditos BETWEEN 1 AND 20
+  ),
+  CONSTRAINT fk_materias_maestro FOREIGN KEY (maestro_id) REFERENCES maestros(id) ON UPDATE CASCADE ON DELETE RESTRICT
+) ENGINE = InnoDB;
+CREATE TABLE IF NOT EXISTS grupos (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  nombre VARCHAR(50) NOT NULL UNIQUE,
+  grado TINYINT UNSIGNED NOT NULL,
+  turno ENUM('Matutino', 'Vespertino') NOT NULL,
+  ciclo_escolar VARCHAR(9) NOT NULL,
+  creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  actualizado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT chk_grupos_grado CHECK (
+    grado BETWEEN 1 AND 12
+  )
+) ENGINE = InnoDB;
+CREATE TABLE IF NOT EXISTS alumnos (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  matricula VARCHAR(30) NOT NULL UNIQUE,
+  nombre VARCHAR(120) NOT NULL,
+  correo VARCHAR(150) NULL UNIQUE,
+  fecha_nacimiento DATE NOT NULL,
+  grupo_id INT UNSIGNED NOT NULL,
+  materia_id INT UNSIGNED NOT NULL,
+  creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  actualizado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_alumnos_grupo FOREIGN KEY (grupo_id) REFERENCES grupos(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+  CONSTRAINT fk_alumnos_materia FOREIGN KEY (materia_id) REFERENCES materias(id) ON UPDATE CASCADE ON DELETE RESTRICT
+) ENGINE = InnoDB;
+DROP TRIGGER IF EXISTS usuarios_limite_admin_insert;
+DROP TRIGGER IF EXISTS usuarios_limite_admin_update;
+DROP TRIGGER IF EXISTS usuarios_proteger_admin_delete;
+DELIMITER //
+
+CREATE TRIGGER usuarios_limite_admin_insert
+BEFORE INSERT ON usuarios
+FOR EACH ROW
+BEGIN
+  IF NEW.rol = 'admin' AND (SELECT COUNT(*) FROM usuarios WHERE rol = 'admin') >= 2 THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El sistema permite exactamente dos administradores';
+  END IF;
+END//
+
+CREATE TRIGGER usuarios_limite_admin_update
+BEFORE UPDATE ON usuarios
+FOR EACH ROW
+BEGIN
+  IF OLD.rol <> 'admin' AND NEW.rol = 'admin'
+     AND (SELECT COUNT(*) FROM usuarios WHERE rol = 'admin') >= 2 THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El sistema permite exactamente dos administradores';
+  END IF;
+  IF OLD.rol = 'admin' AND NEW.rol <> 'admin' THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'No se puede cambiar el rol de un administrador protegido';
+  END IF;
+END//
+
+CREATE TRIGGER usuarios_proteger_admin_delete
+BEFORE DELETE ON usuarios
+FOR EACH ROW
+BEGIN
+  IF OLD.rol = 'admin' THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'No se puede eliminar un administrador protegido';
+  END IF;
+END//
+
+DELIMITER ;
+CREATE USER IF NOT EXISTS 'lab_app' @'localhost' IDENTIFIED BY 'hirofis17';
+ALTER USER 'lab_app' @'localhost' IDENTIFIED BY 'hirofis17';
+GRANT SELECT,
+  INSERT,
+  UPDATE,
+  DELETE ON lab_escolar.* TO 'lab_app' @'localhost';
+CREATE USER IF NOT EXISTS 'lab_app' @'127.0.0.1' IDENTIFIED BY 'hirofis17';
+ALTER USER 'lab_app' @'127.0.0.1' IDENTIFIED BY 'hirofis17';
+GRANT SELECT,
+  INSERT,
+  UPDATE,
+  DELETE ON lab_escolar.* TO 'lab_app' @'127.0.0.1';
+FLUSH PRIVILEGES;

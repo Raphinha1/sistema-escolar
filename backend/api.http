@@ -1,0 +1,60 @@
+@base = http://localhost:3000/api
+
+### Estado
+GET {{base}}/salud
+
+### Login como administrador
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{
+  "username": "Admin",
+  "password": "$3cr3t"
+}
+
+### Sesión actual
+GET {{base}}/auth/me
+
+### Resumen
+GET {{base}}/resumen
+
+### Listar usuarios (solo admin)
+GET {{base}}/usuarios
+
+### Crear usuario (el rol enviado se rechaza por lista blanca)
+POST {{base}}/usuarios
+Content-Type: application/json
+
+{
+  "nombre": "Mariana López",
+  "username": "mlopez",
+  "correo": "mlopez@escuela.local",
+  "password": "Maria#2026",
+  "activo": true
+}
+
+### Listar maestros
+GET {{base}}/maestros
+
+### Crear maestro
+POST {{base}}/maestros
+Content-Type: application/json
+
+{
+  "nombre": "Juan Pérez",
+  "correo": "juan.perez@escuela.local",
+  "especialidad": "Desarrollo de software",
+  "telefono": "5559876543"
+}
+
+### Listar materias
+GET {{base}}/materias
+
+### Listar grupos
+GET {{base}}/grupos
+
+### Listar alumnos
+GET {{base}}/alumnos
+
+### Cerrar sesión
+POST {{base}}/auth/logout
